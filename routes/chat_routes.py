@@ -7,11 +7,44 @@ from sqlalchemy import text
 router = APIRouter()
 
 @router.get("/chat")
-def chat(prompt: str, conversation_id: int):
-
-    ai_response = generate_ai_response(prompt)
+def chat(
+    prompt: str,
+    conversation_id: int,
+    model: str = "llama3"
+):
+    ai_response = generate_ai_response(
+        prompt,
+        model
+    )
 
     with engine.connect() as connection:
+
+        result = connection.execute(
+            text("""
+                SELECT title
+                FROM conversations
+                WHERE id = :conversation_id
+            """),
+            {
+                "conversation_id": conversation_id
+            }
+        )
+
+        current_title = result.fetchone()[0]
+
+        if current_title == "New Chat":
+
+            connection.execute(
+                text("""
+                    UPDATE conversations
+                    SET title = :title
+                    WHERE id = :conversation_id
+                """),
+                {
+                    "title": prompt[:30],
+                    "conversation_id": conversation_id
+                }
+            )
 
         # Save user message
         connection.execute(
@@ -177,3 +210,36 @@ def get_messages(conversation_id: int):
             })
 
     return messages
+
+@router.delete("/conversation/{conversation_id}")
+def delete_conversation(conversation_id: int):
+
+    with engine.connect() as connection:
+
+        # Delete messages first
+        connection.execute(
+            text("""
+                DELETE FROM messages
+                WHERE conversation_id = :conversation_id
+            """),
+            {
+                "conversation_id": conversation_id
+            }
+        )
+
+        # Delete conversation
+        connection.execute(
+            text("""
+                DELETE FROM conversations
+                WHERE id = :conversation_id
+            """),
+            {
+                "conversation_id": conversation_id
+            }
+        )
+
+        connection.commit()
+
+    return {
+        "message": "Conversation deleted"
+    }

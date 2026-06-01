@@ -1,11 +1,13 @@
 import requests
 
-def generate_ai_response(prompt):
-
+def generate_ai_response(
+    prompt,
+    model
+):
     response = requests.post(
         "http://localhost:11434/api/generate",
         json={
-            "model": "llama3",
+            "model": model,
             "prompt": prompt,
             "stream": False
         }
