@@ -7,20 +7,39 @@ from sqlalchemy import text
 router = APIRouter()
 
 @router.get("/chat")
-def chat(prompt: str):
+def chat(prompt: str, conversation_id: int):
 
     ai_response = generate_ai_response(prompt)
 
     with engine.connect() as connection:
 
+        # Save user message
         connection.execute(
             text("""
-                INSERT INTO chat_history (prompt, response)
-                VALUES (:prompt, :response)
+                INSERT INTO messages
+                (conversation_id, role, text)
+                VALUES
+                (:conversation_id, :role, :text)
             """),
             {
-                "prompt": prompt,
-                "response": ai_response
+                "conversation_id": conversation_id,
+                "role": "user",
+                "text": prompt
+            }
+        )
+
+        # Save AI message
+        connection.execute(
+            text("""
+                INSERT INTO messages
+                (conversation_id, role, text)
+                VALUES
+                (:conversation_id, :role, :text)
+            """),
+            {
+                "conversation_id": conversation_id,
+                "role": "ai",
+                "text": ai_response
             }
         )
 
@@ -79,3 +98,82 @@ def create_conversation():
     return {
         "conversation_id": conversation_id
     }
+@router.get("/conversations")
+def get_conversations():
+
+    with engine.connect() as connection:
+
+        result = connection.execute(
+            text("""
+                SELECT id, title
+                FROM conversations
+                ORDER BY id DESC
+            """)
+        )
+
+        conversations = []
+
+        for row in result:
+
+            conversations.append({
+                "id": row.id,
+                "title": row.title
+            })
+
+    return conversations
+
+@router.get("/messages/{conversation_id}")
+def get_messages(conversation_id: int):
+
+    with engine.connect() as connection:
+
+        result = connection.execute(
+            text("""
+                SELECT role, text
+                FROM messages
+                WHERE conversation_id = :conversation_id
+                ORDER BY id ASC
+            """),
+            {
+                "conversation_id": conversation_id
+            }
+        )
+
+        messages = []
+
+        for row in result:
+
+            messages.append({
+                "role": row.role,
+                "text": row.text
+            })
+
+    return messages
+
+@router.get("/messages/{conversation_id}")
+def get_messages(conversation_id: int):
+
+    with engine.connect() as connection:
+
+        result = connection.execute(
+            text("""
+                SELECT role, text
+                FROM messages
+                WHERE conversation_id = :conversation_id
+                ORDER BY id ASC
+            """),
+            {
+                "conversation_id": conversation_id
+            }
+        )
+
+        messages = []
+
+        for row in result:
+
+            messages.append({
+                "role": row.role,
+                "text": row.text
+            })
+
+    return messages
