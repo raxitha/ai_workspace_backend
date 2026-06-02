@@ -243,3 +243,29 @@ def delete_conversation(conversation_id: int):
     return {
         "message": "Conversation deleted"
     }
+
+@router.put("/conversation/{conversation_id}")
+def rename_conversation(
+    conversation_id: int,
+    title: str
+):
+
+    with engine.connect() as connection:
+
+        connection.execute(
+            text("""
+                UPDATE conversations
+                SET title = :title
+                WHERE id = :conversation_id
+            """),
+            {
+                "title": title,
+                "conversation_id": conversation_id
+            }
+        )
+
+        connection.commit()
+
+    return {
+        "message": "Conversation renamed"
+    }
