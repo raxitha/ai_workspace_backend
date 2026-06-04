@@ -1,5 +1,7 @@
 from fastapi import APIRouter
 from services.ollama_service import generate_ai_response
+from fastapi.responses import PlainTextResponse
+from fastapi import UploadFile
 
 from database import engine
 from sqlalchemy import text
@@ -268,4 +270,66 @@ def rename_conversation(
 
     return {
         "message": "Conversation renamed"
+    }
+
+@router.get(
+    "/export/{conversation_id}",
+    response_class=PlainTextResponse
+)
+def export_conversation(
+    conversation_id: int
+):
+
+    with engine.connect() as connection:
+
+        result = connection.execute(
+            text("""
+                SELECT role,text
+                FROM messages
+                WHERE conversation_id = :conversation_id
+                ORDER BY id
+            """),
+            {
+                "conversation_id": conversation_id
+            }
+        )
+
+        messages = result.fetchall()
+
+    output = ""
+
+    for message in messages:
+
+        output += (
+            f"{message.role.upper()}:\n"
+            f"{message.text}\n\n"
+        )
+
+    return output
+
+@app.post("/upload")
+async def upload_file(
+    file: UploadFile
+):
+
+    content = (
+        await file.read()
+    ).decode("utf-8")
+
+    with engine.begin() as connection:
+
+        connection.execute(
+            text("""
+                INSERT INTO knowledge_base
+                (content)
+                VALUES
+                (:content)
+            """),
+            {
+                "content": content
+            }
+        )
+
+    return {
+        "message": "Uploaded"
     }
