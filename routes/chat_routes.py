@@ -14,8 +14,20 @@ def chat(
     conversation_id: int,
     model: str = "llama3"
 ):
-    ai_response = generate_ai_response(
-        prompt,
+    knowledge = get_knowledge(
+        prompt
+    )
+    full_prompt = f"""
+    Answer using the provided context.
+
+    Context:
+    {knowledge}
+
+    Question:
+    {prompt}
+    """
+    response = generate_ai_response(
+        full_prompt,
         model
     )
 
@@ -74,14 +86,14 @@ def chat(
             {
                 "conversation_id": conversation_id,
                 "role": "ai",
-                "text": ai_response
+                "text": response
             }
         )
 
         connection.commit()
 
     return {
-        "response": ai_response
+        "response": response
     }
 
 @router.get("/history")
@@ -307,7 +319,7 @@ def export_conversation(
 
     return output
 
-@app.post("/upload")
+@router.post("/upload")
 async def upload_file(
     file: UploadFile
 ):
@@ -315,21 +327,71 @@ async def upload_file(
     content = (
         await file.read()
     ).decode("utf-8")
+    chunks = [
+        content[i:i+500]
+        for i in range(
+            0,
+            len(content),
+            500
+        )
+    ]
 
     with engine.begin() as connection:
 
-        connection.execute(
-            text("""
-                INSERT INTO knowledge_base
-                (content)
-                VALUES
-                (:content)
-            """),
-            {
-                "content": content
-            }
-        )
+        for chunk in chunks:
+
+            connection.execute(
+                text("""
+                    INSERT INTO knowledge_chunks
+                    (content)
+                    VALUES
+                    (:content)
+                """),
+                {
+                    "content": chunk
+                }
+            )
 
     return {
         "message": "Uploaded"
     }
+
+def get_knowledge(
+    question
+):
+
+    keywords = (
+        question.lower()
+        .split()
+    )
+
+    with engine.connect() as connection:
+
+        result = connection.execute(
+            text("""
+                SELECT content
+                FROM knowledge_chunks
+            """)
+        )
+
+        rows = result.fetchall()
+
+    matched_chunks = []
+
+    for row in rows:
+
+        chunk = row[0]
+
+        for keyword in keywords:
+
+            if keyword in chunk.lower():
+
+                matched_chunks.append(
+                    chunk
+                )
+
+                break
+
+    return "\n\n".join(
+        matched_chunks[:5]
+    )
